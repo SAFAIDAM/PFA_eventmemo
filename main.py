@@ -5,7 +5,7 @@ from flask_admin.contrib.sqla import ModelView
 from flask_login import UserMixin, LoginManager, login_required, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-# from flask_migrate import Migrate
+from flask_migrate import Migrate
 from webforms import Login, EditProfile, EditEventForm, Sign_up, PostForm
 from werkzeug.utils import secure_filename
 import uuid as uuid
@@ -29,7 +29,7 @@ def create_app():
     UPLOAD_FOLDER = 'static/images/'
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-    # migrate = Migrate(app, db)
+    migrate = Migrate(app, db)
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
