@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 import uuid as uuid
 import os
 import smtplib
-from flask_mail import Mail,Message
+from flask_mail import Mail, Message
 from email import encoders
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -76,24 +76,41 @@ def create_app():
         def __repr__(self):
             return '<Post %r>' % self.title
 
-
     class SecureModelView(ModelView):
         def is_accessible(self):
-            if current_user.is_authenticated == 'admin@admin.com' and check_password_hash == 'admin':
+            if current_user.is_authenticated and current_user.username == 'admin':
                 session['admin_logged_in'] = True
-                return redirect(url_for('admin.index'))
+                return redirect("/admin/")
             else:
                 return abort(403)
-
 
     # class SecureAdminIndexView(AdminIndexView):
     #     def is_accessible(self):
     #         return current_user.is_authenticated and session.get('admin_logged_in')
 
-    admin = Admin(app)
-    admin.add_view(SecureModelView(Posts, db.session))
-    admin.add_view(SecureModelView(User, db.session))
-    
+    class UserView(ModelView):
+        def is_accessible(self):
+            if current_user.is_authenticated and current_user.username == 'admin':
+                return True
+            else:
+                abort(404)
+        form_columns = ['username', 'email']
+        column_exclude_list = ['password']
+        can_create = False
+        can_edit = False
+        can_view_details = True
+
+    class PostView(ModelView):
+        def is_accessible(self):
+            if current_user.is_authenticated and current_user.username == 'admin':
+                return True
+            else:
+                abort(404)
+        form_columns = ['title', "place", 'date_posted', 'start', 'end']
+
+    admin = Admin(app,  name="eventmemo")
+    admin.add_view(UserView(User, db.session))
+    admin.add_view(PostView(Posts, db.session))
 
     @app.route('/')
     def home():
@@ -103,22 +120,22 @@ def create_app():
     def login():
         form = Login()
         if form.validate_on_submit():
+            email = request.form['email']
+            password = request.form['password']
+
             user = User.query.filter_by(email=form.email.data).first()
             if user:
                 if check_password_hash(user.password_hash, form.password.data):
                     login_user(user)
                     flash("Login Succesfull!")
                     return redirect(url_for('dashboard'))
+                if current_user.is_authenticated and current_user.username == "admin":
+                    return redirect("/admin/")
                 else:
                     flash('Wrong Password - Try Again.... ')
             else:
                 flash(" This User Dosen't Exist - Try Again.... ")
-                email = request.form['email']
-                password = request.form['password']
-    
-                if email == 'admin@admin.com' and check_password_hash == 'admin':
-                    session['admin_logged_in'] = True
-                    return redirect(url_for('admin.index'))
+
         return render_template('login.html', form=form)
 
     @app.route('/signup', methods=['GET', 'POST'])
@@ -213,7 +230,7 @@ def create_app():
         posts = Posts.query.filter_by(
             author=current_user.id).order_by(Posts.date_posted)
         return render_template("maindashboard.html", posts=posts)
-    
+
     @app.route('/events/edit_event/<int:id>', methods=['GET', 'POST'])
     @login_required
     def edit_event(id):
@@ -227,7 +244,8 @@ def create_app():
                 file = request.files['image']
                 filename = secure_filename(file.filename)
                 image_name = str(uuid.uuid1()) + '_' + filename
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], image_name))
+                file.save(os.path.join(
+                    app.config['UPLOAD_FOLDER'], image_name))
                 post.image = image_name
 
             db.session.commit()
@@ -261,7 +279,7 @@ def create_app():
             db.session.commit()
             flash('Event Post was submited successfuly')
             return redirect(url_for('dashboard'))
-        return render_template('create_event.html', post=post ,form=form)
+        return render_template('create_event.html', post=post, form=form)
 
     @app.route('/events/delete/<id>', methods=['GET', 'POST'])
     @login_required
@@ -276,11 +294,9 @@ def create_app():
             flash('whoops! there was a problem deleting post, try again...')
         return render_template("maindashboard.html", posts=post)
 
-    
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
-
 
     @app.route('/invite')
     @login_required
@@ -288,15 +304,14 @@ def create_app():
         invite_url = url_for('invite', _external=True)
         return render_template("invite.html")
 
-
     @app.route('/tirms')
     def tirms():
         return render_template('tirms.html')
-    
+
     @app.route('/aboutus')
     def about():
         return render_template('aboutus.html')
-    
+
     @app.route('/dashboard', methods=['GET', 'POST'])
     @login_required
     def dashboard():
@@ -318,18 +333,11 @@ def create_app():
     @app.errorhandler(500)
     def page_not_found(e):
         return render_template("500.html"), 500
-    
-
-        
-
-
-
 
     class Login(FlaskForm):
         email = StringField('EMAIL', validators=[DataRequired()])
         password = PasswordField('PASSWORD', validators=[DataRequired()])
         submit = SubmitField('Log in with eventmemo')
-
 
     class EditProfile(FlaskForm):
         username = StringField('USERNAME', validators=[DataRequired()])
@@ -338,23 +346,22 @@ def create_app():
         profil_pic = FileField('')
         submit = SubmitField('save changes')
 
-
     class Sign_up(FlaskForm):
         username = StringField('USERNAME', validators=[DataRequired()])
         email = StringField('EMAIL', validators=[DataRequired()])
         password_hash = PasswordField('PASSWORD', validators=[DataRequired(), EqualTo(
-                'password_hash2', message='Passwords Must Match')])
+            'password_hash2', message='Passwords Must Match')])
         password_hash2 = PasswordField(
-                'CONFIRM PASSWORD', validators=[DataRequired()])
+            'CONFIRM PASSWORD', validators=[DataRequired()])
         profil_pic = FileField('Profile Pic')
         submit = SubmitField('Create eventmemo account')
-
 
     class PostForm(FlaskForm):
         title = StringField("Title", validators=[DataRequired()])
         start = DateTimeLocalField(
-          "Start", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
-        end = DateTimeLocalField("End", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
+            "Start", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
+        end = DateTimeLocalField(
+            "End", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
         slug = StringField("Slug", validators=[DataRequired()])
         place = StringField('location', validators=[DataRequired()])
         image = FileField('Image')
@@ -363,8 +370,9 @@ def create_app():
     class EditEventForm(FlaskForm):
         title = StringField('Title', validators=[DataRequired()])
         start = DateTimeLocalField(
-          "Start", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
-        end = DateTimeLocalField("End", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
+            "Start", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
+        end = DateTimeLocalField(
+            "End", format="%Y-%m-%dT%H:%M", validators=[DataRequired()])
         slug = StringField('Slug', validators=[DataRequired()])
         place = StringField('location', validators=[DataRequired()])
         image = FileField('Image')
@@ -372,11 +380,9 @@ def create_app():
 
     class CommentForm(FlaskForm):
         text = StringField(validators=[
-        InputRequired(), Length(min=4, max=26)], render_kw={"placeholder": "comment some"})
+            InputRequired(), Length(min=4, max=26)], render_kw={"placeholder": "comment some"})
 
-        submit = SubmitField('Comment')
-
-
+    submit = SubmitField('Comment')
 
     with app.app_context():
         db.create_all()
