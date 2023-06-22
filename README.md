@@ -4,7 +4,7 @@
 This is a flask app that allows users / customers to create / manage / track their events and also allows people how wants to go to your event get an invitation this app is build with FLASK framwork / PYTHON / JAVASCRIPT / SQL / HTML / CSS 
 TO run the app
 if you work with git : 1- install the framework FLASK:
-                                              pip install flask 
+                                              pip install flask
 2- activate the virtuall env:
                                          source virt/Scripts/activate
 3- export the flask app: 
